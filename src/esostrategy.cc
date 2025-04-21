@@ -123,7 +123,7 @@ namespace libcmaes
 	  _solutions._candidates.at(r).set_fvalue(_func(phenocandidates.col(r).data(),candidates.rows()));
 	else _solutions._candidates.at(r).set_fvalue(_func(candidates.col(r).data(),candidates.rows()));
 #else
-#pragma omp parallel for if (_parameters._mt_feval)
+
 	// for (int r=0;r<candidates.cols();r++)
     //   {
 	// 	double* errors;
