@@ -59,6 +59,28 @@ namespace libcmaes
   }
 
   template<class TParameters,class TSolutions,class TStopCriteria>
+  ESOStrategy<TParameters,TSolutions,TStopCriteria>::ESOStrategy(
+		FitFunc &func,
+		FitFuncGPU &funcGPU,
+		TParameters &parameters)
+    :_func(func), _funcGPU(funcGPU),_nevals(0),_niter(0),_parameters(parameters)
+  {
+    if (parameters._maximize)
+      {
+	_funcaux = _func;
+	_func = [&](const double *x, const int N) { return -1.0*_funcaux(x,N); };
+      }
+    _pfunc = [](const TParameters&,const TSolutions&){return 0;}; // high level progress function does do anything.
+    _solutions = TSolutions(_parameters);
+    if (parameters._uh)
+      {
+	std::random_device rd;
+	_uhgen = std::mt19937(rd());
+	_uhunif = std::uniform_real_distribution<>(0,1);
+      }
+  }
+
+  template<class TParameters,class TSolutions,class TStopCriteria>
   ESOStrategy<TParameters,TSolutions,TStopCriteria>::ESOStrategy(FitFunc &func,
 								 TParameters &parameters,
 								 const TSolutions &solutions)
@@ -86,18 +108,65 @@ namespace libcmaes
 #ifdef HAVE_DEBUG
     std::chrono::time_point<std::chrono::system_clock> tstart = std::chrono::system_clock::now();
 #endif
+
+#define IS_GPU 1
+#if !IS_GPU
     // one candidate per row.
 #pragma omp parallel for if (_parameters._mt_feval)
     for (int r=0;r<candidates.cols();r++)
       {
+	std::cout << "cols: " << candidates.cols() << std::endl;
+	std::cout << "rows: " << candidates.rows() << std::endl;
 	_solutions._candidates.at(r).set_x(candidates.col(r));
 	_solutions._candidates.at(r).set_id(r);
 	if (phenocandidates.size())
 	  _solutions._candidates.at(r).set_fvalue(_func(phenocandidates.col(r).data(),candidates.rows()));
 	else _solutions._candidates.at(r).set_fvalue(_func(candidates.col(r).data(),candidates.rows()));
-	
-	//std::cerr << "candidate x: " << _solutions._candidates.at(r)._x.transpose() << std::endl;
-      }
+#else
+#pragma omp parallel for if (_parameters._mt_feval)
+	// for (int r=0;r<candidates.cols();r++)
+    //   {
+	// 	double* errors;
+	// std::cout << "cols: " << candidates.cols() << std::endl;
+	// std::cout << "rows: " << candidates.rows() << std::endl;
+	// _solutions._candidates.at(r).set_x(candidates.col(r));
+	// _solutions._candidates.at(r).set_id(r);
+	// _funcGPU(phenocandidates.col(r).data(),candidates.rows(), errors);
+	// if (phenocandidates.size())
+	//   _solutions._candidates.at(r).set_fvalue(_funcGPU(phenocandidates.col(r).data(),candidates.rows(), errors));
+	// else _solutions._candidates.at(r).set_fvalue(_funcGPU(candidates.col(r).data(),candidates.rows(), errors));
+    // }
+
+	// Set the buffer with all the angles
+	std::vector<double> x(candidates.cols() * candidates.rows(), 0.0f);
+	int32_t offset = 0;
+	const int32_t cols = candidates.cols();
+	const int32_t rows = candidates.rows();
+	const int32_t total = cols * rows;
+	// std::cout << "cols: " << candidates.cols() << std::endl;
+	// std::cout << "rows: " << candidates.rows() << std::endl;
+	for(int32_t r = 0; r < candidates.cols(); ++r){
+		_solutions._candidates.at(r).set_x(candidates.col(r));
+		_solutions._candidates.at(r).set_id(r);
+		if(phenocandidates.size()){
+			std::memcpy(x.data() + offset, phenocandidates.col(r).data(), rows * sizeof(double));
+		}
+		else {
+			std::memcpy(x.data() + offset, candidates.col(r).data(), rows * sizeof(double));
+		}
+		offset += rows;
+	}
+	double* errors = _funcGPU(x.data(), total);
+
+	// Updating the solutions
+	for(int32_t r = 0; r < candidates.cols(); ++r){
+		// std::cout << errors[r] << " | ";
+		_solutions._candidates.at(r).set_fvalue(errors[r]);
+	}
+	// std::cout << std::endl;
+	// exit(-1);
+#endif
+
     int nfcalls = candidates.cols();
     
     // evaluation step of uncertainty handling scheme.

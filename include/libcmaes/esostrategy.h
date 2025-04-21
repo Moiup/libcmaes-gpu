@@ -29,6 +29,7 @@
 
 namespace libcmaes
 {
+  typedef std::function<double* (const double*, const int32_t &n)> FitFuncGPU;
   typedef std::function<double (const double*, const int &n)> FitFunc;
   typedef std::function<dVec (const double*, const int &n)> GradFunc;
 
@@ -65,6 +66,12 @@ namespace libcmaes
      */
     ESOStrategy(FitFunc &func,
 		TParameters &parameters);
+
+    ESOStrategy(
+      FitFunc &func,
+		  FitFuncGPU &funcGPU,
+      TParameters &parameters
+      );
 
     /**
      * \brief constructor for starting from an existing solution.
@@ -246,6 +253,7 @@ namespace libcmaes
     
   protected:
     FitFunc _func; /**< the objective function. */
+    FitFuncGPU _funcGPU;
     int _nevals;  /**< number of function evaluations. */
     int _niter;  /**< number of iterations. */
     TSolutions _solutions; /**< holder of the current set of solutions and the dynamic elemenst of the search state in general. */

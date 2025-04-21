@@ -89,6 +89,13 @@ namespace libcmaes
 	:TESOStrategy(func,parameters)
 	{
 	}
+
+  ESOptimizer(FitFunc &func,
+  FitFuncGPU &funcGPU,
+		  TParameters &parameters)
+	:TESOStrategy(func, funcGPU, parameters)
+	{
+	}
       
       /**
        * \brief constructor for starting from an existing solution

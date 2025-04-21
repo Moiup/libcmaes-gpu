@@ -120,6 +120,34 @@ namespace libcmaes
       }
   }
 
+
+    template <class TCovarianceUpdate, class TGenoPheno>
+  CMAStrategy<TCovarianceUpdate,TGenoPheno>::CMAStrategy(
+                FitFunc &func,
+                FitFuncGPU &funcGPU,
+							 CMAParameters<TGenoPheno> &parameters)
+    :ESOStrategy<CMAParameters<TGenoPheno>,CMASolutions,CMAStopCriteria<TGenoPheno> >(func, funcGPU, parameters)
+  {
+    eostrat<TGenoPheno>::_pfunc = _defaultPFunc;
+    if (!parameters._full_fplot)
+      eostrat<TGenoPheno>::_pffunc = _defaultFPFunc;
+    else eostrat<TGenoPheno>::_pffunc = &fpfuncdef_full_impl<TCovarianceUpdate,TGenoPheno>;
+    _esolver = Eigen::EigenMultivariateNormal<double>(false,eostrat<TGenoPheno>::_parameters._seed); // seeding the multivariate normal generator.
+    LOG_IF(INFO,!eostrat<TGenoPheno>::_parameters._quiet) << "CMA-ES / dim=" << eostrat<TGenoPheno>::_parameters._dim << " / lambda=" << eostrat<TGenoPheno>::_parameters._lambda << " / sigma0=" << eostrat<TGenoPheno>::_solutions._sigma << " / mu=" << eostrat<TGenoPheno>::_parameters._mu << " / mueff=" << eostrat<TGenoPheno>::_parameters._muw << " / c1=" << eostrat<TGenoPheno>::_parameters._c1 << " / cmu=" << eostrat<TGenoPheno>::_parameters._cmu << " / tpa=" << (eostrat<TGenoPheno>::_parameters._tpa==2) << " / threads=" << Eigen::nbThreads() << std::endl;
+    if (!eostrat<TGenoPheno>::_parameters._fplot.empty())
+      {
+	_fplotstream = new std::ofstream(eostrat<TGenoPheno>::_parameters._fplot);
+	_fplotstream->precision(std::numeric_limits<double>::digits10);
+      }
+    auto mit=eostrat<TGenoPheno>::_parameters._stoppingcrit.begin();
+    while(mit!=eostrat<TGenoPheno>::_parameters._stoppingcrit.end())
+      {
+	_stopcriteria.set_criteria_active((*mit).first,(*mit).second);
+	++mit;
+      }
+  }
+
+
   template <class TCovarianceUpdate, class TGenoPheno>
   CMAStrategy<TCovarianceUpdate,TGenoPheno>::CMAStrategy(FitFunc &func,
 							 CMAParameters<TGenoPheno> &parameters,
@@ -350,8 +378,10 @@ namespace libcmaes
       }
     
     std::chrono::time_point<std::chrono::system_clock> tstart = std::chrono::system_clock::now();
-    while(!stop())
+    int32_t n = 0;
+    while(!stop() && n < 100)
       {
+        n++;
 	dMat candidates = askf();
 	evalf(candidates,eostrat<TGenoPheno>::_parameters._gp.pheno(candidates));
 	tellf();

@@ -58,6 +58,9 @@ namespace libcmaes
       CMAStrategy(FitFunc &func,
 		  CMAParameters<TGenoPheno> &parameters);
 
+      CMAStrategy(FitFunc &func, FitFuncGPU &funcGPU,
+		  CMAParameters<TGenoPheno> &parameters);
+
       /**
        * \brief constructor for starting from an existing solution.
        * @param func objective function to minimize
