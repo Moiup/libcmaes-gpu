@@ -527,7 +527,7 @@ namespace libcmaes
 	    parameters.set_sep();
 	  if (solutions.cov().size()==0)
 	    {
-	      ESOptimizer<CMAStrategy<CovarianceUpdate,TGenoPheno>,CMAParameters<TGenoPheno>,CMASolutions> sepcmaes(func,parameters);
+	      ESOptimizer<CMAStrategy<CovarianceUpdate,TGenoPheno>,CMAParameters<TGenoPheno>,CMASolutions> sepcmaes(func, funcGPU,parameters);
 	      if (gfunc != nullptr)
 		sepcmaes.set_gradient_func(gfunc);
 	      sepcmaes.set_progress_func(pfunc);
